@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <title>Χάρτης Κρουνών</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root { --border:#e5e7eb; --bg:#ffffff; --muted:#6b7280; --accent:#2563eb; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#cccccc; }
+    .wrap { display:grid; grid-template-columns: 1.2fr 1fr; gap:12px; padding:12px; height: calc(100vh - 58px); }
+    #map { width:100%; height:100%; min-height:420px; border:1px solid var(--border); border-radius:12px; }
+    .panel { display:flex; flex-direction:column; gap:8px; }
+    .card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:10px; }
+    .search { padding:10px; border:1px solid var(--border); border-radius:8px; }
+    .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+    .switch { display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--border); border-radius:999px; background:#fff; cursor:pointer; }
+    .switch input { appearance:none; width:34px; height:20px; border-radius:999px; border:1px solid var(--border); position:relative; }
+    .switch input::after { content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:999px; background:#9ca3af; transition:all .2s; }
+    .switch input:checked { border-color:var(--accent); background:#e0e7ff; }
+    .switch input:checked::after { left:18px; background:#2563eb; }
+    .btn { padding:6px 12px; border:1px solid var(--border); border-radius:8px; cursor:pointer; background:#f9fafb; }
+    .btn:hover { background:#f3f4f6; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding:8px; border-bottom:1px solid #f1f5f9; text-align:left; }
+    th { cursor:pointer; user-select:none; }
+    tr.active { background:#eff6ff; }
+    .badge { padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid var(--border); }
+    .ok{ background:#ecfdf5; border-color:#a7f3d0; }
+	.faulty{ background:#fff7ed; border-color:#fed7aa; }
+	.unknown { background:#fee2e2; border-color:#fecaca; }
+    .muted { color: var(--muted); }
+    .list-title { font-weight:600; }
+	.emoji-pin {font-size: 24px;  line-height: 1; }
+	.note { max-width: 320px; white-space: normal; word-wrap: break-word; }
+	@media (max-width: 900px) { .note { max-width: 100%; } }
+    @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; height:auto; } #map { min-height: 320px; } }
+	.badge{ display:inline-flex; align-items:center; padding:4px 10px; line-height:1; white-space:nowrap; border-radius:999px; font-size:12px; border:1px solid var(--border);}
+	th[data-sort="status"], td.status-cell{ width:1%; white-space:nowrap; }
+	header {padding: 12px 16px; background: #ffad33; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; /* τίτλος αριστερά, logo δεξιά */}
+	.logo { height: 90px; width: auto; }
+.emoji-pin { font-size:24px; line-height:1; pointer-events:auto; }
+
+  </style>
+</head>
+<body>
+  <header>
+  <h1>Χάρτης κρουνών</h1>
+  <img src="images.jpg" alt="Λογότυπο" class="logo" />
+</header>
+
+
+  <div class="wrap">
+    <div id="map" class="card"></div>
+
+    <div class="panel">
+      <input id="search" class="search card" placeholder="Αναζήτηση σε όνομα/κατάσταση/στορτς…" />
+
+      <div class="card filters">
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <label class="switch">
+            <input type="checkbox" id="f-only-ok" />
+            <span>Μόνο λειτουργικοί</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="f-only-storts" />
+            <span>Μόνο όσοι χρειάζονται στορτς</span>
+          </label>
+        </div>
+        <button id="btn-reset" class="btn">Επαναφορά φίλτρων</button>
+      </div>
+
+      <div class="card list-title">
+        Λίστα κρουνών (<span id="list-count">0</span>)
+      </div>
+
+      <div class="card" style="overflow:auto; max-height:100%;">
+        <table id="table">
+          <thead>
+            <tr>
+              <th data-sort="name">Όνομα</th>
+              <th data-sort="status">Κατάσταση</th>
+              <th data-sort="lastInspection">Επιθ.</th>
+              <th data-sort="storts">Χρειάζεται στορτς</th>
+			  <th data-sort="comments">Σχόλια</th>
+
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <p id="empty" class="muted" style="display:none; padding:8px;">Δεν βρέθηκαν κρουνοί…</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+  /* ---- Δεδομένα κρουνών (όλα μέσα εδώ) ---- */
+  const hydrantsData = [
+    {"id":"H1","name":"Ιωνίας & Κύπρου","lat":37.99178212909209,"lng":23.79200282133265,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"Δίπλα στο μνημείο ελλήνων πεσόντων (ηρώο).","storts":"Ναι"},
+    {"id":"H2","name":"Πίνδου 60 & Λευκωσίας","lat":37.98808197291376,"lng":23.795363423457747,"status":"ΜΕ ΠΡΟΒΛΗΜΑ","accessible":true,"lastInspection":"2024-05-01","comments":"Θέλει πολλές στροφές","storts":"Ναι"},
+    {"id":"H3","name":"Μακεδονίας 63 και Λάρνακος","lat":37.989290128326395,"lng":23.801268621413147,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H4","name":"Εθνικής Αμύνης 14 & Ξανθίππου","lat":37.992149198794245,"lng":23.80069050325994,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H5","name":"Μακεδονίας 1 & Αργυροκάστρου","lat":37.98478093343491,"lng":23.79361189180712,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H6","name":"Πίνδου & Κατεχάκη","lat":37.98430750470852,"lng":23.782835274490328,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"Δεξιά από το φανάρι της Πίνδου, με κατεύθυνση προς Κατεχάκη","storts":"Ναι"},
+    {"id":"H7","name":"Μακεδονίας 90","lat":37.98929814482198,"lng":23.801237477116704,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H8","name":"Χατζηκωνσταντή & Αναστάσεως","lat":37.98929402240419,"lng":23.80292003001152,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H9","name":"Στρ. Παπάγου & 8ης Μεραρχίας","lat":37.99350390437114,"lng":23.79163324896086,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"Κάτω είσοδος Verde","storts":"Ναι"},
+    {"id":"H10","name":"Τέρμα Οδού Ζησιμοπούλου","lat":37.97498287733483,"lng":23.794326243056535,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"Μπροστά από την μπάρα Ζησιμοπούλου","storts":"Ναι"},
+    {"id":"H11","name":"Ζησιμοπούλου & Δαβάκη 82","lat":37.97562070977692,"lng":23.792570525416334,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H12","name":"Πίνδου 26","lat":37.99005933074323,"lng":23.799564188588608,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H13","name":"Μαυραγάνη 1 & Δογαροπούλου","lat":37.98349062386904,"lng":23.797069279535354,"status":"ΜΕ ΠΡΟΒΛΗΜΑ","accessible":true,"lastInspection":"2024-05-01","comments":"Χαμηλή πίεση","storts":"Ναι"},
+    {"id":"H14","name":"Παπανικολή 2","lat":37.98071288181875,"lng":23.79815445043643,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Όχι"},
+    {"id":"H15","name":"Σωρανού Εφεσίου","lat":37.99088950446145,"lng":23.786888172760296,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"Έναντι ΔΟΠΑΠ | πριν από στροφή για Ίδρυμα Ιατροβιολογικών Ερευνών","storts":"Ναι"},
+    {"id":"H16","name":"Πίνδου & Αλεβιζάτου 1","lat":37.983532316028914,"lng":23.786309594465095,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H17","name":"Ευτέρπης & Αναστάσεως 79","lat":37.9955952140946,"lng":23.79388551768268,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H18","name":"Φανερωμένης 108 & Ασπασίας","lat":38.00370921100946,"lng":23.79758031002916,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H19","name":"Περικλέους 42-44 & Κλειούς","lat":37.999817404882364,"lng":23.797632899602633,"status":"ΜΕ ΠΡΟΒΛΗΜΑ","accessible":true,"lastInspection":"2024-05-01","comments":"Χωρίς τάπα, θέλει πολλές στροφές","storts":"Ναι"},
+    {"id":"H20","name":"Περικλέους 36 & Κατσιμπίρη","lat":38.00034713116027,"lng":23.79696064799871,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H21","name":"Περικλέους & 25ης Μαρτίου","lat":37.99769441522006,"lng":23.800196590594652,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"Έναντι δημαρχείου και δίπλα στη στάση λεωφορείου","storts":"Ναι"},
+    {"id":"H22","name":"17ης Νοέμβρη 110 & Νάξου & Κεφαλληνίας","lat":37.998951791084245,"lng":23.80604726254184,"status":"ΜΕ ΠΡΟΒΛΗΜΑ","accessible":true,"lastInspection":"2024-05-01","comments":"Θέλει πολλές στροφές","storts":"Ναι"},
+    {"id":"H23","name":"Ναυαρίνου 10 & Ανατολής","lat":37.99263682253926,"lng":23.806335780955745,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H24","name":"Ναβαρίνου 22 & Δοϊράνης","lat":37.99661937638061,"lng":23.81068502281058,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H25","name":"Νεκροταφείο Χολαργού","lat":37.983097086075084,"lng":23.813465059722578,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Όχι"},
+    {"id":"H26","name":"Μεσογείων (κάθοδος) — Μετρό Χολαργού","lat":38.00500453386974,"lng":23.794538822493838,"status":"ΛΕΙΤΟΥΡΓΙΚΟΣ","accessible":true,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H27","name":"Μεσογείων & Πυθαγόρα (περίπτερο)","lat":38.006358185334726,"lng":23.79863310018487,"status":"ΕΚΤΟΣ ΛΕΙΤΟΥΡΓΙΑΣ","accessible":false,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H28","name":"Μεσογείων 266","lat":38.0065161996649,"lng":23.798774746289713,"status":"ΕΚΤΟΣ ΛΕΙΤΟΥΡΓΙΑΣ","accessible":false,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"},
+    {"id":"H29","name":"Νεαπόλεως 90","lat":37.99879217545052,"lng":23.816996713353547,"status":"ΕΚΤΟΣ ΛΕΙΤΟΥΡΓΙΑΣ","accessible":false,"lastInspection":"2024-05-01","comments":"-","storts":"Ναι"}
+  ];
+
+  /* ---- helpers ---- */
+  const normalize = (s) => (s||"").toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+  function statusClass(status){
+    const s = normalize(status);
+    if (s === "ΛΕΙΤΟΥΡΓΙΚΟΣ") return "ok";
+    if (s === "ΜΕ ΠΡΟΒΛΗΜΑ") return "faulty";
+    if (s === "ΕΚΤΟΣ ΛΕΙΤΟΥΡΓΙΑΣ") return "unknown";
+    return "unknown";
+  }
+  // helper για ασφαλές κείμενο (χρησιμοποιείται ΚΑΙ σε table ΚΑΙ σε popup)
+  const esc = (s)=>String(s ?? "-").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+  // helper για ημερομηνίες dd/mm/yyyy
+  function formatDate(dateStr) {
+    if (!dateStr) return "-";
+    const d = new Date(dateStr);
+    if (isNaN(d)) return dateStr;
+    const day = String(d.getDate()).padStart(2,"0");
+    const month = String(d.getMonth()+1).padStart(2,"0");
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+  // Emoji icon (ΟΡΙΣΜΕΝΟ ΠΡΙΝ το renderMarkers)
+  const hydrantEmojiIcon = L.divIcon({
+    className: "emoji-pin",
+    html: "🧯",   
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12]
+  });
+
+  /* ---- app state ---- */
+  let state = { data:[], filtered:[], selectedId:null, sortBy:"name", sortDir:"asc", markersById:new Map() };
+
+  /* ---- map ---- */
+  const map = L.map('map', {
+  doubleClickZoom: false,
+  closePopupOnClick: false
+}).setView([37.9838,23.7275], 12);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+
+  /* ---- ui ---- */
+  const tbody=document.getElementById('tbody');
+  const emptyEl=document.getElementById('empty');
+  const searchInput=document.getElementById('search');
+  const onlyOk=document.getElementById('f-only-ok');
+  const onlyStorts=document.getElementById('f-only-storts');
+  const btnReset=document.getElementById('btn-reset');
+  const listCount=document.getElementById('list-count');
+
+  /* ---- events ---- */
+  onlyOk.addEventListener('change',()=>{ if(onlyOk.checked) onlyStorts.checked=false; applyAll(); });
+  onlyStorts.addEventListener('change',()=>{ if(onlyStorts.checked) onlyOk.checked=false; applyAll(); });
+  searchInput.addEventListener('input',()=>applyAll());
+  btnReset.addEventListener('click',()=>{ searchInput.value=""; onlyOk.checked=false; onlyStorts.checked=false; applyAll(); });
+
+  document.querySelectorAll('th[data-sort]').forEach(th=>{
+    th.addEventListener('click',()=>{
+      const key=th.getAttribute('data-sort');
+      if(state.sortBy===key){ state.sortDir=state.sortDir==="asc"?"desc":"asc"; }
+      else { state.sortBy=key; state.sortDir="asc"; }
+      applyAll();
+    });
+  });
+
+  /* ---- renderers ---- */
+  function renderTable(){
+    tbody.innerHTML="";
+    listCount.textContent = String(state.filtered.length);
+    if(state.filtered.length===0){ emptyEl.style.display="block"; return; }
+    emptyEl.style.display="none";
+    for(const h of state.filtered){
+      const tr=document.createElement('tr');
+      if(h.id===state.selectedId) tr.classList.add('active');
+      tr.onclick=()=>selectHydrant(h.id,{fly:true});
+      const badge = `<span class="badge ${statusClass(h.status)}">${esc(h.status)}</span>`;
+		tr.innerHTML = `
+		  <td>${esc(h.name)}</td>
+		  <td class="status-cell">${badge}</td>
+		  <td>${formatDate(h.lastInspection)}</td>
+		  <td>${esc(h.storts)}</td>
+		  <td class="note">${esc(h.comments)}</td>
+		`;
+
+      tbody.appendChild(tr);
+    }
+  }
+
+  function renderMarkers(){
+  // καθάρισε τυχόν παλιούς markers
+  for (const [,m] of state.markersById) map.removeLayer(m);
+  state.markersById.clear();
+
+  for (const h of state.filtered){
+    const marker = L.marker([h.lat, h.lng], { icon: hydrantEmojiIcon }).addTo(map);
+
+    // φτιάχνουμε ΜΙΑ φορά το html του popup
+    const html = `
+      <b>${esc(h.name)}</b><br/>
+      Κατάσταση: ${esc(h.status)}<br/>
+      Επιθ.: ${formatDate(h.lastInspection)}<br/>
+      Χρειάζεται στορτς: ${esc(h.storts)}<br/>
+      Σχόλια: ${esc(h.comments)}
+    `;
+
+    // δένουμε το popup (με autoPan) και ανοίγουμε ΜΟΝΟ με click στο marker
+    marker.bindPopup(html, { autoPan: true });
+
+    marker.on('click', (e) => {
+      // σταμάτα το click να φτάσει στον χάρτη
+      if (e && e.originalEvent) {
+        e.originalEvent.preventDefault();
+        e.originalEvent.stopPropagation();
+      }
+      // μην κάνεις zoom/pan
+      selectHydrant(h.id, { fly: false });
+      // άνοιξε ρητά το popup
+      marker.openPopup();
+    });
+
+    state.markersById.set(h.id, marker);
+  }
+}
+
+
+  function selectHydrant(id, opts = {}) {
+	  state.selectedId = id;
+
+	  for (const tr of tbody.querySelectorAll('tr')) tr.classList.remove('active');
+	  const idx = state.filtered.findIndex(x => x.id === id);
+	  if (idx >= 0 && tbody.children[idx]) tbody.children[idx].classList.add('active');
+
+	  const h = state.data.find(x => x.id === id);
+	  if (!h) return;
+
+	  // Αν ΔΕΝ ζητήθηκε fly, δεν αλλάζουμε zoom/κέντρο
+	  if (opts.fly !== false) {
+		map.flyTo([h.lat, h.lng], 16);
+	  }
+
+	  const m = state.markersById.get(id);
+	  if (m) m.openPopup();
+	}
+
+  function applyAll(){
+    const q = normalize(searchInput.value || "");
+    let f = state.data.filter(h=>{
+      const text = normalize(`${h.name||""} ${h.status||""} ${h.storts||""} ${h.comments||""}`);
+      if(q && !text.includes(q)) return false;
+      if(onlyOk.checked && normalize(h.status) !== "ΛΕΙΤΟΥΡΓΙΚΟΣ") return false;
+      const st = normalize(h.storts);
+      if(onlyStorts.checked && !(st==="ΝΑΙ"||st==="NAI")) return false;
+      return true;
+    });
+    const dir=state.sortDir==="asc"?1:-1;
+    f.sort((a,b)=>{
+      const k=state.sortBy;
+      const va=(a[k]??"").toString().toLowerCase();
+      const vb=(b[k]??"").toString().toLowerCase();
+      if(va<vb) return -1*dir; if(va>vb) return 1*dir; return 0;
+    });
+    state.filtered=f; renderTable(); renderMarkers();
+  }
+
+  function init(data){
+    state.data=data; applyAll();
+    if(state.filtered[0]) selectHydrant(state.filtered[0].id,{fly:false});
+  }
+
+  // Χωρίς fetch: άμεση φόρτωση
+  init(hydrantsData);
+</script>
+
+</body>
+</html>
