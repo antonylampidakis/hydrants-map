@@ -5,44 +5,7 @@
   <title>Χάρτης Κρουνών</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
-    :root { --border:#e5e7eb; --bg:#ffffff; --muted:#6b7280; --accent:#2563eb; }
-    * { box-sizing: border-box; }
-    body { margin:0; font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#cccccc; }
-    .wrap { display:grid; grid-template-columns: 1.2fr 1fr; gap:12px; padding:12px; height: calc(100vh - 58px); }
-    #map { width:100%; height:100%; min-height:420px; border:1px solid var(--border); border-radius:12px; }
-    .panel { display:flex; flex-direction:column; gap:8px; }
-    .card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:10px; }
-    .search { padding:10px; border:1px solid var(--border); border-radius:8px; }
-    .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
-    .switch { display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--border); border-radius:999px; background:#fff; cursor:pointer; }
-    .switch input { appearance:none; width:34px; height:20px; border-radius:999px; border:1px solid var(--border); position:relative; }
-    .switch input::after { content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:999px; background:#9ca3af; transition:all .2s; }
-    .switch input:checked { border-color:var(--accent); background:#e0e7ff; }
-    .switch input:checked::after { left:18px; background:#2563eb; }
-    .btn { padding:6px 12px; border:1px solid var(--border); border-radius:8px; cursor:pointer; background:#f9fafb; }
-    .btn:hover { background:#f3f4f6; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { padding:8px; border-bottom:1px solid #f1f5f9; text-align:left; }
-    th { cursor:pointer; user-select:none; }
-    tr.active { background:#eff6ff; }
-    .badge { padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid var(--border); }
-    .ok{ background:#ecfdf5; border-color:#a7f3d0; }
-	.faulty{ background:#fff7ed; border-color:#fed7aa; }
-	.unknown { background:#fee2e2; border-color:#fecaca; }
-    .muted { color: var(--muted); }
-    .list-title { font-weight:600; }
-	.emoji-pin {font-size: 24px;  line-height: 1; }
-	.note { max-width: 320px; white-space: normal; word-wrap: break-word; }
-	@media (max-width: 900px) { .note { max-width: 100%; } }
-    @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; height:auto; } #map { min-height: 320px; } }
-	.badge{ display:inline-flex; align-items:center; padding:4px 10px; line-height:1; white-space:nowrap; border-radius:999px; font-size:12px; border:1px solid var(--border);}
-	th[data-sort="status"], td.status-cell{ width:1%; white-space:nowrap; }
-	header {padding: 12px 16px; background: #ffad33; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; /* τίτλος αριστερά, logo δεξιά */}
-	.logo { height: 90px; width: auto; }
-.emoji-pin { font-size:24px; line-height:1; pointer-events:auto; }
-
-  </style>
+ <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
@@ -418,5 +381,6 @@
 
 </body>
 </html>
+
 
 
