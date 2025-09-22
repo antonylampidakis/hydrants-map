@@ -76,7 +76,6 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
 <script>
 
@@ -117,7 +116,9 @@ async function fetchHydrantsForBounds() {
 
     // ενημέρωσε το state και ξανα-απόδωσε
     state.data = data;
+	populateMuniFilter(state.data);  
     applyAll();
+	
     // κράτα το πρώτο ως επιλεγμένο αν υπάρχει
     if (state.filtered[0]) selectHydrant(state.filtered[0].id, { fly: false });
   } catch (err) {
