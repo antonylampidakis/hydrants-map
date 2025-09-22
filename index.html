@@ -130,9 +130,7 @@ function scheduleBboxFetch() {
   bboxTimer = setTimeout(fetchHydrantsForBounds, 300);
 }
 
-// φόρτωσε αρχικά και μετά σε κάθε pan/zoom
-map.on('moveend', scheduleBboxFetch);
-fetchHydrantsForBounds();
+
 
 /* --- helpers --- */
 const normalize = (s) => (s||"").toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
@@ -171,6 +169,10 @@ let state = { data:[], filtered:[], selectedId:null, sortBy:"name", sortDir:"asc
 /* --- map --- */
 const map = L.map('map', { doubleClickZoom: false, closePopupOnClick: false }).setView([37.9838,23.7275], 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+
+// φόρτωσε αρχικά και μετά σε κάθε pan/zoom
+map.on('moveend', scheduleBboxFetch);
+fetchHydrantsForBounds();
 
 /* --- ui refs --- */
 const tbody = document.getElementById('tbody');
@@ -359,3 +361,6 @@ function populateMuniFilter(data){
 </script>
 </body>
 </html>
+
+
+
