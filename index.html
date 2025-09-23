@@ -90,41 +90,66 @@ async function fetchHydrantsForBounds() {
   const minLon = b.getWest();
   const maxLat = b.getNorth();
   const maxLon = b.getEast();
-  const url = `${API_BASE}/hydrants/bbox?minLon=${minLon}&minLat=${minLat}&maxLon=${maxLon}&maxLat=${maxLat}`;
 
-  try {
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const raw = await res.json();
+  // 1) minLon/minLat/maxLon/maxLat  (αυτό που ήδη είχες)
+  const u1 = `${API_BASE}/hydrants/bbox?minLon=${minLon}&minLat=${minLat}&maxLon=${maxLon}&maxLat=${maxLat}`;
+  // 2) minLng/minLat/maxLng/maxLat  (μερικά endpoints θέλουν lng αντί για lon)
+  const u2 = `${API_BASE}/hydrants/bbox?minLng=${minLon}&minLat=${minLat}&maxLng=${maxLon}&maxLat=${maxLat}`;
+  // 3) bbox ως ένα param "bbox=minLon,minLat,maxLon,maxLat"
+  const u3 = `${API_BASE}/hydrants/bbox?bbox=${minLon},${minLat},${maxLon},${maxLat}`;
 
-    // προσαρμογή στα flags που ήδη περιμένει ο κώδικας σου (functional/needsStorts)
-    // επειδή το API δεν στέλνει storts/lastInspection/comments/cabinet, τα κρατάμε κενά/false
-    const data = raw.map(h => ({
-      id: h.id,
-      name: h.name || h.code || 'Κρουνός',
-      status: h.status || '',
-      municipality: h.municipality || '',
-      lastInspection: null,
-      storts: '',
-      comments: '',
-      cabinet: '',
-      functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ"),
-      needsStorts: false,
-      lat: h.lat,
-      lng: h.lon   // <<< το API δίνει lon, εσύ θες lng στη δομή σου
-    }));
+  const candidates = [u1, u2, u3];
 
-    // ενημέρωσε το state και ξανα-απόδωσε
-    state.data = data;
-	populateMuniFilter(state.data);  
-    applyAll();
-	
-    // κράτα το πρώτο ως επιλεγμένο αν υπάρχει
-    if (state.filtered[0]) selectHydrant(state.filtered[0].id, { fly: false });
-  } catch (err) {
-    console.error('FETCH BBOX ERROR:', err);
+  let lastError = null;
+  for (const url of candidates) {
+    try {
+      debug('Καλώ URL:', { url });
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) {
+        lastError = new Error(`HTTP ${res.status} ${res.statusText}`);
+        debug('Μη-ΟΚ απόκριση:', { url, status: res.status, statusText: res.statusText });
+        continue;
+      }
+      const raw = await res.json();
+      if (!Array.isArray(raw)) {
+        lastError = new Error('Το API δεν επέστρεψε array');
+        debug('Μη-αναμενόμενη απόκριση:', { url, body: raw });
+        continue;
+      }
+      // map πεδία → στη δομή σου
+      const data = raw.map(h => ({
+        id: h.id ?? h._id ?? `${h.lat},${h.lon}`,
+        name: h.name || h.code || 'Κρουνός',
+        status: h.status || '',
+        municipality: h.municipality || h.muni || '',
+        lastInspection: h.lastInspection || null,
+        storts: h.storts ?? '',
+        comments: h.comments ?? '',
+        cabinet: h.cabinet ?? '',
+        functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ"),
+        needsStorts: !!h.needsStorts,
+        lat: h.lat,
+        lng: h.lng ?? h.lon // API συνήθως δίνει lon
+      })).filter(h => typeof h.lat === 'number' && typeof h.lng === 'number');
+
+      debug('OK, φόρτωσα:', { url, count: data.length });
+      state.data = data;
+      populateMuniFilter(state.data);
+      applyAll();
+      if (state.filtered[0]) selectHydrant(state.filtered[0].id, { fly: false });
+      return; // επιτυχία — σταμάτα εδώ
+    } catch (err) {
+      lastError = err;
+      debug('Σφάλμα fetch:', { url, message: String(err) });
+      continue;
+    }
   }
+
+  // Αν φτάσαμε εδώ, όλες οι παραλλαγές απέτυχαν
+  console.error('FETCH BBOX ERROR:', lastError);
+  debug('Αποτυχία φόρτωσης από όλα τα URLs', { lastError: String(lastError), tried: candidates });
 }
+
 
 function scheduleBboxFetch() {
   if (bboxTimer) clearTimeout(bboxTimer);
@@ -357,11 +382,23 @@ function populateMuniFilter(data){
   }
   for(const m of [...extra].sort()) muniSelect.appendChild(new Option(m,m));
 }
+	
+function debug(msg, obj) {
+  let d = document.getElementById('debug');
+  if (!d) {
+    d = document.createElement('pre');
+    d.id = 'debug';
+    d.style.cssText = 'position:fixed;right:8px;bottom:8px;max-width:45vw;max-height:40vh;overflow:auto;background:#1e1e1e;color:#fff;padding:8px;border-radius:6px;z-index:99999;font:12px/1.35 monospace';
+    document.body.appendChild(d);
+  }
+  d.textContent = [msg, obj ? JSON.stringify(obj, null, 2) : ''].join('\n');
+}
 
 
 </script>
 </body>
 </html>
+
 
 
 
