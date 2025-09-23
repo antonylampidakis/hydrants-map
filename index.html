@@ -327,7 +327,7 @@ const { data, error } = await sb
     municipality: h.municipality || '',
     lastInspection: h.last_verified_at || null,
     storts: (normalize(h.status) === "ΧΡΕΙΑΖΕΤΑΙ ΣΤΟΡΤΣ") ? "Ναι" : "Όχι",
-    comments: h.address || '',
+    comments: h.comments || '',
     cabinet: '',
     functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ" || normalize(h.status) === "ACTIVE"),
     needsStorts: (normalize(h.status) === "ΧΡΕΙΑΖΕΤΑΙ ΣΤΟΡΤΣ"),
@@ -350,6 +350,7 @@ const { data, error } = await sb
 	
 </body>
 </html>
+
 
 
 
