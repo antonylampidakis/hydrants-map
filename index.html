@@ -10,7 +10,9 @@
 <body>
 <header>
   <h1>Χάρτης κρουνών</h1>
- <h3 style="color: red; text-align: left;">Διαδικασία αναβάθμισης σε εξέλιξη!!</h3>
+  
+  <h3 style="color: red; text-align: left;">Διαδικασία αναβάθμισης σε εξέλιξη!!</h3> <!-- comments -->
+	
   <input id="file-xlsx" type="file" accept=".xlsx" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">
 
 
@@ -305,8 +307,9 @@
   // Ζητάμε τα πεδία + X/Y από το geom
 const { data, error } = await sb
   .from('hydrants_with_coords')
-  .select('id,code,name,address,status,municipality,last_verified_at,lat,lon')
-  .limit(5000);
+  .select('id,code,name,address,status,municipality,last_verified_at,comments,lat,lon')
+  .limit(5000); // ή κράτα τα .gte/.lte αν χρησιμοποιείς bbox
+
 
 
 
@@ -327,13 +330,14 @@ const { data, error } = await sb
     municipality: h.municipality || '',
     lastInspection: h.last_verified_at || null,
     storts: (normalize(h.status) === "ΧΡΕΙΑΖΕΤΑΙ ΣΤΟΡΤΣ") ? "Ναι" : "Όχι",
-    comments: h.comments || '',
+    comments: h.comments || '',          // << ΠΑΙΡΝΕΙ ΤΑ ΣΧΟΛΙΑ ΑΠΟ ΤΟ VIEW
     cabinet: '',
     functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ" || normalize(h.status) === "ACTIVE"),
     needsStorts: (normalize(h.status) === "ΧΡΕΙΑΖΕΤΑΙ ΣΤΟΡΤΣ"),
     lat, lng
   };
 }).filter(Boolean);
+
 
 
   debug('Supabase OK, φόρτωσα:', { count: mapped.length });
@@ -345,25 +349,6 @@ const { data, error } = await sb
 }
 
 </script>
-
-
 	
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
