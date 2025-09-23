@@ -209,7 +209,7 @@
       marker.bindPopup(html, { autoPan: true });
       marker.on('click', (e) => {
         if (e && e.originalEvent) { e.originalEvent.preventDefault(); e.originalEvent.stopPropagation(); }
-        selectHydrant(h.id, { fly: false });
+        Hydrant(h.id, { fly: false });
         marker.openPopup();
       });
       state.markersById.set(h.id, marker);
@@ -217,9 +217,9 @@
     updateToTopVisibility();
   }
 
-  function selectHydrant(id, opts = {}) {
-    state.selectedId = id;
-    for (const tr of tbody.querySelectorAll('tr')) tr.classList.remove('active');
+  function Hydrant(id, opts = {}) {
+    state.edId = id;
+    for (const tr of tbody.queryorAll('tr')) tr.classList.remove('active');
     const idx = state.filtered.findIndex(x => x.id === id);
     if (idx >= 0 && tbody.children[idx]) tbody.children[idx].classList.add('active');
     const h = state.data.find(x => x.id === id);
@@ -307,7 +307,7 @@
   // Ζητάμε τα πεδία + X/Y από το geom
 const { data, error } = await sb
   .from('hydrants_with_coords')
-  .select('id,code,name,address,status,municipality,last_verified_at,comments,needsStorts,lat,lon')
+  .select('id,code,name,address,status,municipality,last_verified_at,comments,"needsStorts",lat,lon')
   .limit(5000);
 
   if (error) {
@@ -326,11 +326,11 @@ const mapped = (data || []).map(h => {
     status: h.status || '',
     municipality: h.municipality || '',
     lastInspection: h.last_verified_at || null,
-    storts: (h.needsStorts === false) ? "Ναι" : "Όχι",   // Αν false → χρειάζεται στορτς
+    storts: (h.needsStorts === false) ? "Ναι" : "Όχι",
     comments: h.comments || '',
     cabinet: '',
     functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ" || normalize(h.status) === "ACTIVE"),
-    needsStorts: (h.needsStorts === false),              // Boolean για τα φίλτρα
+	needsStorts: (h.needsStorts === false),
     lat, lng
   };
 }).filter(Boolean);
@@ -350,4 +350,5 @@ const mapped = (data || []).map(h => {
 	
 </body>
 </html>
+
 
