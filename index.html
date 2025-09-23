@@ -72,9 +72,10 @@
 <script type="module">
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-const SUPABASE_URL = "https://bvkfucezbffchaerlbao.supabase.co";  
-const SUPABASE_ANON = "…"; // άφησα το δικό σου
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+  // ====== ΡΥΘΜΙΣΗ SUPABASE ======
+  const SUPABASE_URL = "https://bvkfucezbffchaerlbao.supabase.co";  
+  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2a2Z1Y2V6YmZmY2hhZXJsYmFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5NDAyNDUsImV4cCI6MjA3MzUxNjI0NX0.nTART0evAClUzq9hJYnQW6s4NL09srxUZT9QcFKD8pQ";            
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // === helpers ===
 const normalize = (s) => (s||"").toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
@@ -187,3 +188,4 @@ fetchHydrants();
 </script>
 </body>
 </html>
+
