@@ -290,65 +290,70 @@
   }
 
   async function fetchHydrantsForBounds() {
-    const b = map.getBounds();
-    const minLat = b.getSouth();
-    const minLon = b.getWest();
-    const maxLat = b.getNorth();
-    const maxLon = b.getEast();
+  const b = map.getBounds();
+  const minLat = b.getSouth();
+  const minLon = b.getWest();
+  const maxLat = b.getNorth();
+  const maxLon = b.getEast();
 
-    // 1η προσπάθεια: lat/lon
-    let { data, error } = await sb.from('hydrants')
-      .select('id,name,status,municipality,lastInspection,storts,comments,cabinet,lat,lon,lng,needsStorts')
-      .gte('lat', minLat).lte('lat', maxLat)
-      .gte('lon', minLon).lte('lon', maxLon)
-      .limit(4000);
+  // Ζητάμε τα πεδία + X/Y από το geom
+  const { data, error } = await sb
+    .from('hydrants')
+    .select(`
+      id,
+      code,
+      name,
+      address,
+      status,
+      municipality,
+      last_verified_at,
+      ST_X(geom) as lon,
+      ST_Y(geom) as lat
+    `)
+    .gte('ST_Y(geom)', minLat).lte('ST_Y(geom)', maxLat)
+    .gte('ST_X(geom)', minLon).lte('ST_X(geom)', maxLon)
+    .limit(4000);
 
-    // 2η: αν δεν υπάρχει lon, δοκίμασε lat/lng
-    if (error || !Array.isArray(data)) {
-      ({ data, error } = await sb.from('hydrants')
-        .select('id,name,status,municipality,lastInspection,storts,comments,cabinet,lat,lng,needsStorts')
-        .gte('lat', minLat).lte('lat', maxLat)
-        .gte('lng', minLon).lte('lng', maxLon)
-        .limit(4000));
-    }
-
-    if (error) {
-      debug('Supabase error', error);
-      return;
-    }
-
-    const mapped = (data || []).map(h => {
-      const lat = Number(h.lat);
-      const lng = Number(h.lng ?? h.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-      return {
-        id: h.id ?? `${lat},${lng}`,
-        name: h.name || 'Κρουνός',
-        status: h.status || '',
-        municipality: h.municipality || '',
-        lastInspection: h.lastInspection || null,
-        storts: h.storts ?? '',
-        comments: h.comments ?? '',
-        cabinet: h.cabinet ?? '',
-        functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ"),
-        needsStorts: !!h.needsStorts,
-        lat, lng
-      };
-    }).filter(Boolean);
-
-    debug('Supabase OK, φόρτωσα:', { count: mapped.length });
-
-    state.data = mapped;
-    populateMuniFilter(state.data);
-    applyAll();
-    if (state.filtered[0]) selectHydrant(state.filtered[0].id, { fly: false });
+  if (error) {
+    debug('Supabase error', error);
+    return;
   }
+
+  const mapped = (data || []).map(h => {
+    const lat = Number(h.lat);
+    const lng = Number(h.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+    return {
+      id: h.id,
+      name: h.name || h.code || 'Κρουνός',
+      status: h.status || '',
+      municipality: h.municipality || '',
+      lastInspection: h.last_verified_at || null,
+      storts: '',
+      comments: h.address || '',
+      cabinet: '',
+      functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ"),
+      needsStorts: false,
+      lat, lng
+    };
+  }).filter(Boolean);
+
+  debug('Supabase OK, φόρτωσα:', { count: mapped.length });
+
+  state.data = mapped;
+  populateMuniFilter(state.data);
+  applyAll();
+  if (state.filtered[0]) selectHydrant(state.filtered[0].id, { fly: false });
+}
+
 </script>
 
 
 	
 </body>
 </html>
+
 
 
 
