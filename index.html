@@ -307,7 +307,7 @@
   // Ζητάμε τα πεδία + X/Y από το geom
 const { data, error } = await sb
   .from('hydrants_with_coords')
-  .select('id,code,name,address,status,municipality,last_verified_at,comments,"needsStorts",lat,lon')
+  .select('id,code,name,address,status,municipality,last_verified_at,comments,"needsStorts",cabinet,lat,lon')
   .limit(5000);
 
   if (error) {
@@ -328,9 +328,10 @@ const mapped = (data || []).map(h => {
     lastInspection: h.last_verified_at || null,
     storts: (h.needsStorts === false) ? "Ναι" : "Όχι",
     comments: h.comments || '',
-    cabinet: '',
+	cabinet: h.cabinet || '',   // "Ναι" ή "Όχι"
     functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ" || normalize(h.status) === "ACTIVE"),
 	needsStorts: (h.needsStorts === false),
+	  
     lat, lng
   };
 }).filter(Boolean);
@@ -350,5 +351,6 @@ const mapped = (data || []).map(h => {
 	
 </body>
 </html>
+
 
 
