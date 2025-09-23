@@ -95,7 +95,8 @@
     if (s === "ΕΚΤΟΣ ΛΕΙΤΟΥΡΓΙΑΣ") return "unknown";
     return "unknown";
   }
-  function formatDate(dateStr) {
+  
+	function formatDate(dateStr) {
     if (!dateStr) return "-";
     if (typeof dateStr === "string" && (/[?]/.test(dateStr) || /-00-00$/.test(dateStr))) return "-";
     const d = new Date(dateStr);
@@ -105,16 +106,21 @@
     const year = d.getFullYear();
     return `${day}/${month}/${year}`;
   }
+	const DEBUG_MODE = false;  // άλλαξέ το σε true αν θέλεις να εμφανίζονται
+
   function debug(msg, obj) {
-    let d = document.getElementById('debug');
-    if (!d) {
-      d = document.createElement('pre');
-      d.id = 'debug';
-      d.style.cssText = 'position:fixed;right:8px;bottom:8px;max-width:45vw;max-height:40vh;overflow:auto;background:#1e1e1e;color:#fff;padding:8px;border-radius:6px;z-index:99999;font:12px/1.35 monospace';
-      document.body.appendChild(d);
-    }
-    d.textContent = [msg, obj ? JSON.stringify(obj, null, 2) : ''].join('\n');
+  if (!DEBUG_MODE) return;  // αν είναι false, δεν εμφανίζει τίποτα
+
+  let d = document.getElementById('debug');
+  if (!d) {
+    d = document.createElement('pre');
+    d.id = 'debug';
+    d.style.cssText = 'position:fixed;right:8px;bottom:8px;max-width:45vw;max-height:40vh;overflow:auto;background:#1e1e1e;color:#fff;padding:8px;border-radius:6px;z-index:99999;font:12px/1.35 monospace';
+    document.body.appendChild(d);
   }
+  d.textContent = [msg, obj ? JSON.stringify(obj, null, 2) : ''].join('\n');
+}
+
 
   // ====== LEAFLET ======
   const hydrantEmojiIcon = L.divIcon({ className: "emoji-pin", html: "🧯", iconSize: [24,24], iconAnchor:[12,12], popupAnchor:[0,-12] });
@@ -344,6 +350,7 @@ const { data, error } = await sb
 	
 </body>
 </html>
+
 
 
 
