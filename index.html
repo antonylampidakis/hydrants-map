@@ -91,16 +91,13 @@ async function fetchHydrantsForBounds() {
   const maxLat = b.getNorth();
   const maxLon = b.getEast();
 
-  // 1) minLon/minLat/maxLon/maxLat  (αυτό που ήδη είχες)
   const u1 = `${API_BASE}/hydrants/bbox?minLon=${minLon}&minLat=${minLat}&maxLon=${maxLon}&maxLat=${maxLat}`;
-  // 2) minLng/minLat/maxLng/maxLat  (μερικά endpoints θέλουν lng αντί για lon)
   const u2 = `${API_BASE}/hydrants/bbox?minLng=${minLon}&minLat=${minLat}&maxLng=${maxLon}&maxLat=${maxLat}`;
-  // 3) bbox ως ένα param "bbox=minLon,minLat,maxLon,maxLat"
   const u3 = `${API_BASE}/hydrants/bbox?bbox=${minLon},${minLat},${maxLon},${maxLat}`;
 
   const candidates = [u1, u2, u3];
-
   let lastError = null;
+
   for (const url of candidates) {
     try {
       debug('Καλώ URL:', { url });
@@ -110,40 +107,52 @@ async function fetchHydrantsForBounds() {
         debug('Μη-ΟΚ απόκριση:', { url, status: res.status, statusText: res.statusText });
         continue;
       }
+
       const raw = await res.json();
       if (!Array.isArray(raw)) {
         lastError = new Error('Το API δεν επέστρεψε array');
         debug('Μη-αναμενόμενη απόκριση:', { url, body: raw });
         continue;
       }
-      // map πεδία → στη δομή σου
-      const data = raw.map(h => ({
-        id: h.id ?? h._id ?? `${h.lat},${h.lon}`,
-        name: h.name || h.code || 'Κρουνός',
-        status: h.status || '',
-        municipality: h.municipality || h.muni || '',
-        lastInspection: h.lastInspection || null,
-        storts: h.storts ?? '',
-        comments: h.comments ?? '',
-        cabinet: h.cabinet ?? '',
-        functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ"),
-        needsStorts: !!h.needsStorts,
-        lat: h.lat,
-        lng: h.lng ?? h.lon // API συνήθως δίνει lon
-      })).filter(h => typeof h.lat === 'number' && typeof h.lng === 'number');
+
+      // 🔴 ΜΕΤΑΤΡΟΠΗ σε αριθμούς + mapping πεδίων
+      const data = raw.map(h => {
+        const lat = Number(h.lat);
+        const lng = Number(h.lng ?? h.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+        return {
+          id: h.id ?? h._id ?? `${lat},${lng}`,
+          name: h.name || h.code || 'Κρουνός',
+          status: h.status || '',
+          municipality: h.municipality || h.muni || '',
+          lastInspection: h.lastInspection || null,
+          storts: h.storts ?? '',
+          comments: h.comments ?? '',
+          cabinet: h.cabinet ?? '',
+          functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ"),
+          needsStorts: !!h.needsStorts,
+          lat, lng
+        };
+      }).filter(Boolean);
 
       debug('OK, φόρτωσα:', { url, count: data.length });
+
       state.data = data;
       populateMuniFilter(state.data);
       applyAll();
       if (state.filtered[0]) selectHydrant(state.filtered[0].id, { fly: false });
-      return; // επιτυχία — σταμάτα εδώ
+      return; // επιτυχία
     } catch (err) {
       lastError = err;
       debug('Σφάλμα fetch:', { url, message: String(err) });
-      continue;
     }
   }
+
+  console.error('FETCH BBOX ERROR:', lastError);
+  debug('Αποτυχία φόρτωσης από όλα τα URLs', { lastError: String(lastError), tried: candidates });
+}
+
 
   // Αν φτάσαμε εδώ, όλες οι παραλλαγές απέτυχαν
   console.error('FETCH BBOX ERROR:', lastError);
@@ -398,6 +407,7 @@ function debug(msg, obj) {
 </script>
 </body>
 </html>
+
 
 
 
