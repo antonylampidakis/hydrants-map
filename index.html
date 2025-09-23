@@ -298,21 +298,12 @@
 
   // Ζητάμε τα πεδία + X/Y από το geom
   const { data, error } = await sb
-    .from('hydrants')
-    .select(`
-      id,
-      code,
-      name,
-      address,
-      status,
-      municipality,
-      last_verified_at,
-      ST_X(geom) as lon,
-      ST_Y(geom) as lat
-    `)
-    .gte('ST_Y(geom)', minLat).lte('ST_Y(geom)', maxLat)
-    .gte('ST_X(geom)', minLon).lte('ST_X(geom)', maxLon)
-    .limit(4000);
+  .from('hydrants_with_coords')
+  .select('id,code,name,address,status,municipality,last_verified_at,lat,lon')
+  .gte('lat', minLat).lte('lat', maxLat)
+  .gte('lon', minLon).lte('lon', maxLon)
+  .limit(4000);
+
 
   if (error) {
     debug('Supabase error', error);
@@ -335,7 +326,8 @@
       cabinet: '',
       functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ"),
       needsStorts: false,
-      lat, lng
+      lat: Number(h.lat),
+	  lng: Number(h.lon),
     };
   }).filter(Boolean);
 
@@ -353,6 +345,7 @@
 	
 </body>
 </html>
+
 
 
 
