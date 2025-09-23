@@ -84,6 +84,7 @@ const API_BASE = 'https://hydrants-api.onrender.com';
 
 // ---- FETCH από API με BBOX ----
 let bboxTimer = null;
+
 async function fetchHydrantsForBounds() {
   const b = map.getBounds();
   const minLat = b.getSouth();
@@ -94,63 +95,98 @@ async function fetchHydrantsForBounds() {
   const u1 = `${API_BASE}/hydrants/bbox?minLon=${minLon}&minLat=${minLat}&maxLon=${maxLon}&maxLat=${maxLat}`;
   const u2 = `${API_BASE}/hydrants/bbox?minLng=${minLon}&minLat=${minLat}&maxLng=${maxLon}&maxLat=${maxLat}`;
   const u3 = `${API_BASE}/hydrants/bbox?bbox=${minLon},${minLat},${maxLon},${maxLat}`;
-
   const candidates = [u1, u2, u3];
+
   let lastError = null;
 
   for (const url of candidates) {
     try {
       debug('Καλώ URL:', { url });
       const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+
+      const ct = res.headers.get('content-type') || '';
+      debug('Απόκριση:', { status: res.status, statusText: res.statusText, contentType: ct });
+
       if (!res.ok) {
-        lastError = new Error(`HTTP ${res.status} ${res.statusText}`);
-        debug('Μη-ΟΚ απόκριση:', { url, status: res.status, statusText: res.statusText });
+        const txt = await res.text().catch(()=>'(no body)');
+        lastError = new Error(`HTTP ${res.status}`);
+        debug('Μη-ΟΚ απόκριση (sample):', txt.slice(0,200));
+        continue;
+      }
+
+      if (!ct.includes('application/json')) {
+        const txt = await res.text().catch(()=>'(no body)');
+        debug('Μη-JSON απόκριση:', txt.slice(0,200));
         continue;
       }
 
       const raw = await res.json();
-      if (!Array.isArray(raw)) {
-        lastError = new Error('Το API δεν επέστρεψε array');
-        debug('Μη-αναμενόμενη απόκριση:', { url, body: raw });
-        continue;
+
+      // --- Αν GeoJSON ---
+      if (raw && Array.isArray(raw.features)) {
+        const data = raw.features.map(f => {
+          const coords = f.geometry?.coordinates;
+          const props = f.properties || {};
+          const lng = Number(coords?.[0]);
+          const lat = Number(coords?.[1]);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          return {
+            id: props.id ?? `${lat},${lng}`,
+            name: props.name || 'Κρουνός',
+            status: props.status || '',
+            municipality: props.municipality || '',
+            lastInspection: props.lastInspection || null,
+            storts: props.storts ?? '',
+            comments: props.comments ?? '',
+            cabinet: props.cabinet ?? '',
+            functional: (normalize(props.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ"),
+            needsStorts: !!props.needsStorts,
+            lat, lng
+          };
+        }).filter(Boolean);
+
+        debug('OK (GeoJSON) φόρτωσα:', { count: data.length });
+        state.data = data; populateMuniFilter(state.data); applyAll();
+        if (state.filtered[0]) selectHydrant(state.filtered[0].id,{fly:false});
+        return;
       }
 
-      // 🔴 ΜΕΤΑΤΡΟΠΗ σε αριθμούς + mapping πεδίων
-      const data = raw.map(h => {
-        const lat = Number(h.lat);
-        const lng = Number(h.lng ?? h.lon);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      // --- Αν απλό array ---
+      if (Array.isArray(raw)) {
+        const data = raw.map(h => {
+          const lat = Number(h.lat ?? h.latitude);
+          const lng = Number(h.lng ?? h.lon ?? h.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          return {
+            id: h.id ?? `${lat},${lng}`,
+            name: h.name || h.code || 'Κρουνός',
+            status: h.status || '',
+            municipality: h.municipality || '',
+            lastInspection: h.lastInspection || null,
+            storts: h.storts ?? '',
+            comments: h.comments ?? '',
+            cabinet: h.cabinet ?? '',
+            functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ"),
+            needsStorts: !!h.needsStorts,
+            lat, lng
+          };
+        }).filter(Boolean);
 
-        return {
-          id: h.id ?? h._id ?? `${lat},${lng}`,
-          name: h.name || h.code || 'Κρουνός',
-          status: h.status || '',
-          municipality: h.municipality || h.muni || '',
-          lastInspection: h.lastInspection || null,
-          storts: h.storts ?? '',
-          comments: h.comments ?? '',
-          cabinet: h.cabinet ?? '',
-          functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ"),
-          needsStorts: !!h.needsStorts,
-          lat, lng
-        };
-      }).filter(Boolean);
+        debug('OK φόρτωσα:', { count: data.length });
+        state.data = data; populateMuniFilter(state.data); applyAll();
+        if (state.filtered[0]) selectHydrant(state.filtered[0].id,{fly:false});
+        return;
+      }
 
-      debug('OK, φόρτωσα:', { url, count: data.length });
-
-      state.data = data;
-      populateMuniFilter(state.data);
-      applyAll();
-      if (state.filtered[0]) selectHydrant(state.filtered[0].id, { fly: false });
-      return; // επιτυχία
+      // --- Μη αναμενόμενη δομή ---
+      debug('Μη-αναμενόμενη JSON:', JSON.stringify(raw).slice(0,200));
     } catch (err) {
       lastError = err;
-      debug('Σφάλμα fetch:', { url, message: String(err) });
+      debug('Σφάλμα fetch:', String(err));
     }
   }
 
-  console.error('FETCH BBOX ERROR:', lastError);
-  debug('Αποτυχία φόρτωσης από όλα τα URLs', { lastError: String(lastError), tried: candidates });
+  debug('Απέτυχαν όλα τα URLs', { tried: candidates, lastError: String(lastError) });
 }
 
 
@@ -403,6 +439,7 @@ function debug(msg, obj) {
 </script>
 </body>
 </html>
+
 
 
 
