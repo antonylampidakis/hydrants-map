@@ -154,10 +154,6 @@ async function fetchHydrantsForBounds() {
 }
 
 
-  // Αν φτάσαμε εδώ, όλες οι παραλλαγές απέτυχαν
-  console.error('FETCH BBOX ERROR:', lastError);
-  debug('Αποτυχία φόρτωσης από όλα τα URLs', { lastError: String(lastError), tried: candidates });
-}
 
 
 function scheduleBboxFetch() {
@@ -407,6 +403,7 @@ function debug(msg, obj) {
 </script>
 </body>
 </html>
+
 
 
 
