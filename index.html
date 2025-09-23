@@ -309,26 +309,26 @@ const { data, error } = await sb
     return;
   }
 
-  const mapped = (data || []).map(h => {
-    const lat = Number(h.lat);
-    const lng = Number(h.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+ const mapped = (data || []).map(h => {
+  const lat = Number(h.lat);
+  const lng = Number(h.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
-    return {
-      id: h.id,
-      name: h.name || h.code || 'Κρουνός',
-      status: h.status || '',
-      municipality: h.municipality || '',
-      lastInspection: h.last_verified_at || null,
-      storts: '',
-      comments: h.address || '',
-      cabinet: '',
-      functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ"),
-      needsStorts: false,
-      lat: Number(h.lat),
-	  lng: Number(h.lon),
-    };
-  }).filter(Boolean);
+  return {
+    id: h.id,
+    name: h.name || h.code || 'Κρουνός',
+    status: h.status || '',
+    municipality: h.municipality || '',
+    lastInspection: h.last_verified_at || null,
+    storts: (normalize(h.status) === "ΧΡΕΙΑΖΕΤΑΙ ΣΤΟΡΤΣ") ? "Ναι" : "Όχι",
+    comments: h.address || '',
+    cabinet: '',
+    functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ" || normalize(h.status) === "ACTIVE"),
+    needsStorts: (normalize(h.status) === "ΧΡΕΙΑΖΕΤΑΙ ΣΤΟΡΤΣ"),
+    lat, lng
+  };
+}).filter(Boolean);
+
 
   debug('Supabase OK, φόρτωσα:', { count: mapped.length });
 
@@ -344,6 +344,7 @@ const { data, error } = await sb
 	
 </body>
 </html>
+
 
 
 
