@@ -10,12 +10,8 @@
 <body>
 <header>
   <h1>Χάρτης κρουνών</h1>
-  
-  <h3 style="color: red; text-align: left;">Διαδικασία αναβάθμισης σε εξέλιξη!!</h3> <!-- comments -->
-	
-  <input id="file-xlsx" type="file" accept=".xlsx" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">
-
-
+  <h3 style="color: red; text-align: left;">Διαδικασία αναβάθμισης σε εξέλιξη!!</h3>
+  <input id="file-xlsx" type="file" accept=".xlsx" style="display:none;">
   <img src="newlogos.png" alt="Λογότυπο" class="logo" />
 </header>
 
@@ -32,24 +28,18 @@
             <input type="checkbox" id="f-only-ok" />
             <span>Μόνο λειτουργικοί</span>
           </label>
-
           <label class="chip row1">
             <input type="checkbox" id="f-only-storts" />
             <span>Μόνο όσοι χρειάζονται στορτς</span>
           </label>
-
-          <div class="row1"></div>
-
           <select id="f-cabinet" class="select-pill row2">
             <option value="">Πυροσβ. φωλιά: Όλες</option>
             <option value="Ναι">Με φωλιά</option>
             <option value="Όχι">Χωρίς φωλιά</option>
           </select>
-
           <select id="f-muni" class="select-pill row2">
             <option value="">Όλοι οι δήμοι</option>
           </select>
-
           <button id="btn-reset" class="pill pill-reset">↺ Επαναφορά φίλτρων</button>
         </div>
       </div>
@@ -68,289 +58,132 @@
             <th data-sort="lastInspection">Επιθ.</th>
             <th data-sort="storts">Χρειάζεται στορτς</th>
             <th data-sort="comments">Σχόλια</th>
+            <th data-sort="cabinet">Φωλιά</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
       </table>
-      <p id="empty" class="muted" style="display:none; padding:8px;">Δεν βρέθηκαν κρουνοί…</p>
+      <p id="empty" class="muted" style="display:none;padding:8px;">Δεν βρέθηκαν κρουνοί…</p>
     </div>
   </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script type="module">
-  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-  // ====== ΡΥΘΜΙΣΗ SUPABASE ======
-  const SUPABASE_URL = "https://bvkfucezbffchaerlbao.supabase.co";  
-  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2a2Z1Y2V6YmZmY2hhZXJsYmFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5NDAyNDUsImV4cCI6MjA3MzUxNjI0NX0.nTART0evAClUzq9hJYnQW6s4NL09srxUZT9QcFKD8pQ";            
-  const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+const SUPABASE_URL = "https://bvkfucezbffchaerlbao.supabase.co";  
+const SUPABASE_ANON = "…"; // άφησα το δικό σου
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
-  // ====== ΒΟΗΘΗΤΙΚΑ ======
-  const normalize = (s) => (s||"").toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
-  const esc = (s)=>String(s ?? "-").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
-  function statusClass(status){
-    const s = normalize(status);
-    if (s === "ΛΕΙΤΟΥΡΓΙΚΟΣ") return "ok";
-    if (s === "ΜΕ ΠΡΟΒΛΗΜΑ") return "faulty";
-    if (s === "ΕΚΤΟΣ ΛΕΙΤΟΥΡΓΙΑΣ") return "unknown";
-    return "unknown";
+// === helpers ===
+const normalize = (s) => (s||"").toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+const esc = (s)=>String(s ?? "-").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
+function statusClass(status){
+  const s = normalize(status);
+  if (s === "ΛΕΙΤΟΥΡΓΙΚΟΣ" || s==="ACTIVE") return "ok";
+  if (s === "ΜΕ ΠΡΟΒΛΗΜΑ") return "faulty";
+  if (s === "ΕΚΤΟΣ ΛΕΙΤΟΥΡΓΙΑΣ") return "unknown";
+  return "unknown";
+}
+function formatDate(d){
+  if (!d) return "-";
+  const dd = new Date(d);
+  if (isNaN(dd)) return "-";
+  return `${dd.getDate().toString().padStart(2,"0")}/${(dd.getMonth()+1).toString().padStart(2,"0")}/${dd.getFullYear()}`;
+}
+const DEBUG_MODE = false;
+function debug(msg,obj){ if(DEBUG_MODE) console.log(msg,obj); }
+
+// === map ===
+const hydrantIcon = L.divIcon({ className:"emoji-pin", html:"🧯", iconSize:[24,24], iconAnchor:[12,12] });
+const map = L.map('map').setView([37.9838,23.7275], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+
+// === state ===
+let state={data:[],filtered:[],selectedId:null,sortBy:"name",sortDir:"asc",markersById:new Map()};
+const tbody=document.getElementById('tbody');
+const emptyEl=document.getElementById('empty');
+const listCount=document.getElementById('list-count');
+const search=document.getElementById('search');
+const onlyOk=document.getElementById('f-only-ok');
+const onlyStorts=document.getElementById('f-only-storts');
+const muniSel=document.getElementById('f-muni');
+const cabSel=document.getElementById('f-cabinet');
+const btnReset=document.getElementById('btn-reset');
+
+// === filters ===
+onlyOk.onchange=()=>{if(onlyOk.checked) onlyStorts.checked=false; applyAll();};
+onlyStorts.onchange=()=>{if(onlyStorts.checked) onlyOk.checked=false; applyAll();};
+search.oninput=applyAll; muniSel.onchange=applyAll; cabSel.onchange=applyAll;
+btnReset.onclick=()=>{search.value="";onlyOk.checked=onlyStorts.checked=false;muniSel.value="";cabSel.value="";applyAll();};
+
+document.querySelectorAll('th[data-sort]').forEach(th=>{
+  th.onclick=()=>{const k=th.dataset.sort;if(state.sortBy===k) state.sortDir=state.sortDir==="asc"?"desc":"asc";else{state.sortBy=k;state.sortDir="asc";}applyAll();};
+});
+
+function renderTable(){
+  tbody.innerHTML=""; listCount.textContent=state.filtered.length;
+  if(!state.filtered.length){ emptyEl.style.display="block"; return; }
+  emptyEl.style.display="none";
+  for(const h of state.filtered){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${esc(h.name)}</td>
+      <td class="status-cell"><span class="badge ${statusClass(h.status)}">${esc(h.status)}</span></td>
+      <td>${formatDate(h.lastInspection)}</td>
+      <td>${esc(h.storts)}</td>
+      <td>${esc(h.comments)}</td>
+      <td>${esc(h.cabinet)}</td>`;
+    tr.onclick=()=>selectHydrant(h.id,{fly:true});
+    tbody.appendChild(tr);
   }
-  
-	function formatDate(dateStr) {
-    if (!dateStr) return "-";
-    if (typeof dateStr === "string" && (/[?]/.test(dateStr) || /-00-00$/.test(dateStr))) return "-";
-    const d = new Date(dateStr);
-    if (isNaN(d)) return "-";
-    const day = String(d.getDate()).padStart(2,"0");
-    const month = String(d.getMonth()+1).padStart(2,"0");
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
+}
+function renderMarkers(){
+  for(const [,m] of state.markersById) map.removeLayer(m); state.markersById.clear();
+  for(const h of state.filtered){
+    const m=L.marker([h.lat,h.lng],{icon:hydrantIcon}).addTo(map);
+    m.bindPopup(`<b>${esc(h.name)}</b><br/>Δήμος: ${esc(h.municipality)}<br/>Κατάσταση: ${esc(h.status)}<br/>Επιθ.: ${formatDate(h.lastInspection)}<br/>Χρειάζεται στορτς: ${esc(h.storts)}<br/>Φωλιά: ${esc(h.cabinet)}<br/>Σχόλια: ${esc(h.comments)}`);
+    m.on('click',()=>selectHydrant(h.id,{fly:false}));
+    state.markersById.set(h.id,m);
   }
-	const DEBUG_MODE = false;  // άλλαξέ το σε true αν θέλεις να εμφανίζονται
-
-  function debug(msg, obj) {
-  if (!DEBUG_MODE) return;  // αν είναι false, δεν εμφανίζει τίποτα
-
-  let d = document.getElementById('debug');
-  if (!d) {
-    d = document.createElement('pre');
-    d.id = 'debug';
-    d.style.cssText = 'position:fixed;right:8px;bottom:8px;max-width:45vw;max-height:40vh;overflow:auto;background:#1e1e1e;color:#fff;padding:8px;border-radius:6px;z-index:99999;font:12px/1.35 monospace';
-    document.body.appendChild(d);
-  }
-  d.textContent = [msg, obj ? JSON.stringify(obj, null, 2) : ''].join('\n');
+}
+function selectHydrant(id,{fly=true}={}){
+  state.selectedId=id; const h=state.data.find(x=>x.id===id); if(!h) return;
+  if(fly) map.flyTo([h.lat,h.lng],16); const m=state.markersById.get(id); if(m) m.openPopup();
 }
 
-
-  // ====== LEAFLET ======
-  const hydrantEmojiIcon = L.divIcon({ className: "emoji-pin", html: "🧯", iconSize: [24,24], iconAnchor:[12,12], popupAnchor:[0,-12] });
-  const map = L.map('map', { doubleClickZoom: false, closePopupOnClick: false }).setView([37.9838,23.7275], 12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
-
-  // ====== STATE/UI ======
-  let state = { data:[], filtered:[], selectedId:null, sortBy:"name", sortDir:"asc", markersById:new Map() };
-  const tbody = document.getElementById('tbody');
-  const emptyEl = document.getElementById('empty');
-  const searchInput = document.getElementById('search');
-  const onlyOk = document.getElementById('f-only-ok');
-  const onlyStorts = document.getElementById('f-only-storts');
-  const btnReset = document.getElementById('btn-reset');
-  const listCount = document.getElementById('list-count');
-  const muniSelect = document.getElementById('f-muni');
-  const cabinetSelect = document.getElementById('f-cabinet');
-  const listCard = document.getElementById('list-card');
-  const toTopBtn = document.getElementById('to-top');
-
-  onlyOk.addEventListener('change',()=>{ if(onlyOk.checked) onlyStorts.checked=false; applyAll(); });
-  onlyStorts.addEventListener('change',()=>{ if(onlyStorts.checked) onlyOk.checked=false; applyAll(); });
-  searchInput.addEventListener('input',()=>applyAll());
-  muniSelect.addEventListener('change', applyAll);
-  cabinetSelect.addEventListener('change', applyAll);
-  btnReset.addEventListener('click',()=>{ searchInput.value=""; onlyOk.checked=false; onlyStorts.checked=false; muniSelect.value=""; cabinetSelect.value=""; applyAll(); });
-  document.querySelectorAll('th[data-sort]').forEach(th=>{
-    th.addEventListener('click',()=>{
-      const key=th.getAttribute('data-sort');
-      if(state.sortBy===key){ state.sortDir=state.sortDir==="asc"?"desc":"asc"; }
-      else { state.sortBy=key; state.sortDir="asc"; }
-      applyAll();
-    });
+function applyAll(){
+  const q=normalize(search.value);
+  const selM=muniSel.value, selC=cabSel.value;
+  let f=state.data.filter(h=>{
+    const txt=normalize(`${h.name} ${h.status} ${h.storts} ${h.comments} ${h.municipality} ${h.cabinet}`);
+    if(q && !txt.includes(q)) return false;
+    if(onlyOk.checked && !h.functional) return false;
+    if(onlyStorts.checked && !h.needsStorts) return false;
+    if(selM && h.municipality!==selM) return false;
+    if(selC && h.cabinet!==selC) return false;
+    return true;
   });
-
-  function updateToTopVisibility(){
-    if (!toTopBtn) return;
-    const canScroll = listCard.scrollHeight > listCard.clientHeight + 10;
-    const scrolled  = listCard.scrollTop > 120;
-    toTopBtn.classList.toggle('show', canScroll && scrolled);
-  }
-  if (toTopBtn) {
-    listCard.addEventListener('scroll', updateToTopVisibility);
-    window.addEventListener('resize', updateToTopVisibility);
-    toTopBtn.addEventListener('click', () => listCard.scrollTo({ top: 0, behavior: 'smooth' }));
-  }
-
-  function renderTable(){
-    tbody.innerHTML="";
-    listCount.textContent = String(state.filtered.length);
-    if(state.filtered.length===0){ emptyEl.style.display="block"; updateToTopVisibility(); return; }
-    emptyEl.style.display="none";
-    for(const h of state.filtered){
-      const tr=document.createElement('tr');
-      if(h.id===state.selectedId) tr.classList.add('active');
-      tr.onclick=()=>selectHydrant(h.id,{fly:true});
-      const badge = `<span class="badge ${statusClass(h.status)}">${esc(h.status)}</span>`;
-      tr.innerHTML = `
-        <td>${esc(h.name)}</td>
-        <td class="status-cell">${badge}</td>
-        <td>${formatDate(h.lastInspection)}</td>
-        <td>${esc(h.storts)}</td>
-        <td class="note">${esc(h.comments)}</td>
-      `;
-      tbody.appendChild(tr);
-    }
-    updateToTopVisibility();
-  }
-
-  function renderMarkers(){
-    for (const [,m] of state.markersById) map.removeLayer(m);
-    state.markersById.clear();
-    for (const h of state.filtered){
-      const marker = L.marker([h.lat, h.lng], { icon: hydrantEmojiIcon }).addTo(map);
-      const html = `
-        <b>${esc(h.name)}</b><br/>
-        Δήμος: ${esc(h.municipality || "-")}<br/>
-        Κατάσταση: ${esc(h.status)}<br/>
-        Επιθ.: ${formatDate(h.lastInspection)}<br/>
-        Χρειάζεται στορτς: ${esc(h.storts)}<br/>
-        Πυροσβ. φωλιά: ${esc(h.cabinet || "-")}<br/>
-        Σχόλια: ${esc(h.comments)}
-      `;
-      marker.bindPopup(html, { autoPan: true });
-      marker.on('click', (e) => {
-        if (e && e.originalEvent) { e.originalEvent.preventDefault(); e.originalEvent.stopPropagation(); }
-        Hydrant(h.id, { fly: false });
-        marker.openPopup();
-      });
-      state.markersById.set(h.id, marker);
-    }
-    updateToTopVisibility();
-  }
-
-  function Hydrant(id, opts = {}) {
-    state.edId = id;
-    for (const tr of tbody.queryorAll('tr')) tr.classList.remove('active');
-    const idx = state.filtered.findIndex(x => x.id === id);
-    if (idx >= 0 && tbody.children[idx]) tbody.children[idx].classList.add('active');
-    const h = state.data.find(x => x.id === id);
-    if (!h) return;
-    if (opts.fly !== false) map.flyTo([h.lat, h.lng], 16);
-    const m = state.markersById.get(id);
-    if (m) m.openPopup();
-  }
-
-  function applyAll(){
-    const q = normalize(searchInput.value || "");
-    const selectedMuni = muniSelect.value || "";
-    const selectedCab  = cabinetSelect.value || "";
-
-    let f = state.data.filter(h=>{
-      const text = normalize(`${h.name||""} ${h.status||""} ${h.storts||""} ${h.comments||""} ${h.municipality||""} ${h.cabinet||""}`);
-      if(q && !text.includes(q)) return false;
-      if (onlyOk.checked && !h.functional) return false;
-      if (onlyStorts.checked && !h.needsStorts) return false;
-      if (selectedMuni && (h.municipality||"") !== selectedMuni) return false;
-      if (selectedCab  && (h.cabinet||"")      !== selectedCab ) return false;
-      return true;
-    });
-
-    const dir=state.sortDir==="asc"?1:-1;
-    f.sort((a,b)=>{
-      const k=state.sortBy;
-      const va=(a[k]??"").toString().toLowerCase();
-      const vb=(b[k]??"").toString().toLowerCase();
-      if(va<vb) return -1*dir; if(va>vb) return 1*dir; return 0;
-    });
-
-    state.filtered=f; renderTable(); renderMarkers();
-  }
-
-  // ====== ΔΗΜΟΙ ======
-  const MUNICIPALITIES = [
-    "Παπάγου","Χολαργού","Γέρακα","Παλλήνης","Ανθούσας","Αργιθέας",
-    "Αγίας Παρασκευής","Ζωγράφου","Καισαριανής","Αγ. Στέφανου","Άνοιξης",
-    "Διόνυσου","Δροσιάς","Κρυονεριου","Ροδόπολης","Σταμάτα","Κηφισιάς",
-    "Ν. Ερυθραίας","Εκάλης","Χαλανδρίου","Βύρωνα","Αθηναίων","Νέου Ψυχικού",
-    "Ηλιούπολης","Γλυφάδας","Φιλοθέης","Μαρκόπουλου Μεσογαίας","Ραφήνας",
-    "Κορωπί","Παιανίας","Σπάτων","Χριστούπολη","Αμαρουσίου","Βριλήσσιων",
-    "Γαλατσίου","Αρτέμιδος","Καλλιτεχνούπολη","Γλυκών Νερών","Καλύβιων",
-    "Βάρης","Βουλιαγμένης","Κίτσι","Άλιμου","Αργυρούπολης","Ελληνικού","Βούλας"
-  ];
-  const _MUNI_MAP = new Map(MUNICIPALITIES.map(n => [normalize(n).replace(/\s+/g,' '), n]));
-  const MUNI_ALIASES = {
-    "ΔΗΜΟΣ ΑΘΗΝΑΙΩΝ": "Αθηναίων",
-    "ΝΕΑΣ ΕΡΥΘΡΑΙΑΣ": "Ν. Ερυθραίας",
-    "Ν ΕΡΥΘΡΑΙΑΣ": "Ν. Ερυθραίας",
-    "ΒΡΙΛΗΣΣΙΩΝ": "Βριλήσσιων",
-    "ΚΡΥΟΝΕΡΙΟΥ": "Κρυονεριου",
-  };
-  function populateMuniFilter(data){
-    muniSelect.innerHTML = "";
-    muniSelect.appendChild(new Option("Όλοι οι δήμοι",""));
-    for(const m of MUNICIPALITIES) muniSelect.appendChild(new Option(m,m));
-    const known = new Set(MUNICIPALITIES);
-    const extra = new Set();
-    for(const h of data){
-      const m = (h.municipality||"").trim();
-      if(m && !known.has(m)) extra.add(m);
-    }
-    for(const m of [...extra].sort()) muniSelect.appendChild(new Option(m,m));
-  }
-
-  // ====== BBOX → SUPABASE ======
-  let bboxTimer = null;
-  map.on('moveend', scheduleBboxFetch);
-  scheduleBboxFetch(); // αρχική φόρτωση
-
-  function scheduleBboxFetch() {
-    if (bboxTimer) clearTimeout(bboxTimer);
-    bboxTimer = setTimeout(fetchHydrantsForBounds, 300);
-  }
-
-  async function fetchHydrantsForBounds() {
-  const b = map.getBounds();
-  const minLat = b.getSouth();
-  const minLon = b.getWest();
-  const maxLat = b.getNorth();
-  const maxLon = b.getEast();
-
-  // Ζητάμε τα πεδία + X/Y από το geom
-const { data, error } = await sb
-  .from('hydrants_with_coords')
-  .select('id,code,name,address,status,municipality,last_verified_at,comments,"needsStorts",cabinet,lat,lon')
-  .limit(5000);
-
-  if (error) {
-    debug('Supabase error', error);
-    return;
-  }
-
-const mapped = (data || []).map(h => {
-  const lat = Number(h.lat);
-  const lng = Number(h.lon);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-
-  return {
-    id: h.id,
-    name: h.name || h.code || 'Κρουνός',
-    status: h.status || '',
-    municipality: h.municipality || '',
-    lastInspection: h.last_verified_at || null,
-    storts: (h.needsStorts === false) ? "Ναι" : "Όχι",
-    comments: h.comments || '',
-	cabinet: h.cabinet || '',   // "Ναι" ή "Όχι"
-    functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ" || normalize(h.status) === "ACTIVE"),
-	needsStorts: (h.needsStorts === false),
-	  
-    lat, lng
-  };
-}).filter(Boolean);
-
-
-
-
-  debug('Supabase OK, φόρτωσα:', { count: mapped.length });
-
-  state.data = mapped;
-  populateMuniFilter(state.data);
-  applyAll();
-  if (state.filtered[0]) selectHydrant(state.filtered[0].id, { fly: false });
+  f.sort((a,b)=>{const va=(a[state.sortBy]??"").toString().toLowerCase();const vb=(b[state.sortBy]??"").toString().toLowerCase();return va<vb?-1*(state.sortDir==="asc"?1:-1):va>vb?1*(state.sortDir==="asc"?1:-1):0;});
+  state.filtered=f; renderTable(); renderMarkers();
 }
 
+// === fetch ===
+async function fetchHydrants(){
+  const {data,error}=await sb.from('hydrants_with_coords')
+    .select('id,code,name,address,status,municipality,last_verified_at,comments,"needsStorts",cabinet,lat,lon')
+    .limit(5000);
+  if(error){debug('Supabase error',error);return;}
+  const mapped=(data||[]).map(h=>({
+    id:h.id,name:h.name||h.code||"Κρουνός",status:h.status||"",
+    municipality:h.municipality||"",lastInspection:h.last_verified_at||null,
+    storts:(h.needsStorts===false)?"Ναι":"Όχι",comments:h.comments||"",
+    cabinet:h.cabinet||"",functional:normalize(h.status)==="ΛΕΙΤΟΥΡΓΙΚΟΣ"||normalize(h.status)==="ACTIVE",
+    needsStorts:(h.needsStorts===false),lat:Number(h.lat),lng:Number(h.lon)
+  }));
+  state.data=mapped; applyAll(); if(state.filtered[0]) selectHydrant(state.filtered[0].id,{fly:false});
+}
+fetchHydrants();
 </script>
-	
 </body>
 </html>
-
-
-
