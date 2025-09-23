@@ -307,18 +307,15 @@
   // Ζητάμε τα πεδία + X/Y από το geom
 const { data, error } = await sb
   .from('hydrants_with_coords')
-  .select('id,code,name,address,status,municipality,last_verified_at,comments,lat,lon')
-  .limit(5000); // ή κράτα τα .gte/.lte αν χρησιμοποιείς bbox
-
-
-
+  .select('id,code,name,address,status,municipality,last_verified_at,comments,needsStorts,lat,lon')
+  .limit(5000);
 
   if (error) {
     debug('Supabase error', error);
     return;
   }
 
- const mapped = (data || []).map(h => {
+const mapped = (data || []).map(h => {
   const lat = Number(h.lat);
   const lng = Number(h.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
@@ -329,14 +326,15 @@ const { data, error } = await sb
     status: h.status || '',
     municipality: h.municipality || '',
     lastInspection: h.last_verified_at || null,
-    storts: (normalize(h.status) === "ΧΡΕΙΑΖΕΤΑΙ ΣΤΟΡΤΣ") ? "Ναι" : "Όχι",
-    comments: h.comments || '',          // << ΠΑΙΡΝΕΙ ΤΑ ΣΧΟΛΙΑ ΑΠΟ ΤΟ VIEW
+    storts: (h.needsStorts === false) ? "Ναι" : "Όχι",   // Αν false → χρειάζεται στορτς
+    comments: h.comments || '',
     cabinet: '',
     functional: (normalize(h.status) === "ΛΕΙΤΟΥΡΓΙΚΟΣ" || normalize(h.status) === "ACTIVE"),
-    needsStorts: (normalize(h.status) === "ΧΡΕΙΑΖΕΤΑΙ ΣΤΟΡΤΣ"),
+    needsStorts: (h.needsStorts === false),              // Boolean για τα φίλτρα
     lat, lng
   };
 }).filter(Boolean);
+
 
 
 
@@ -352,3 +350,4 @@ const { data, error } = await sb
 	
 </body>
 </html>
+
