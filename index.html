@@ -19,7 +19,7 @@
   <div id="map" class="card"></div>
 
   <div class="panel">
-    <input id="search" class="search card" placeholder="Αναζήτηση σε όνομα/κατάσταση/στορτς/δήμο/φωλιά…" />
+    <input id="search" class="search card" placeholder="Αναζήτηση σε όνομα/κατάσταση/στορτς/δήμο/σχόλια…" />
 
     <div class="card filters">
       <div class="toolbar">
@@ -32,11 +32,6 @@
             <input type="checkbox" id="f-only-storts" />
             <span>Μόνο όσοι χρειάζονται στορτς</span>
           </label>
-         <!-- <select id="f-cabinet" class="select-pill row2">
-            <option value="">Πυροσβ. φωλιά: Όλες</option>
-            <option value="Ναι">Με φωλιά</option>
-            <option value="Όχι">Χωρίς φωλιά</option>
-          </select>-->
           <select id="f-muni" class="select-pill row2">
             <option value="">Όλοι οι δήμοι</option>
           </select>
@@ -58,7 +53,6 @@
             <th data-sort="lastInspection">Επιθ.</th>
             <th data-sort="storts">Χρειάζεται στορτς</th>
             <th data-sort="comments">Σχόλια</th>
-            <th data-sort="cabinet">Φωλιά</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -93,8 +87,6 @@ function formatDate(d){
   if (isNaN(dd)) return "-";
   return `${dd.getDate().toString().padStart(2,"0")}/${(dd.getMonth()+1).toString().padStart(2,"0")}/${dd.getFullYear()}`;
 }
-const DEBUG_MODE = false;
-function debug(msg,obj){ if(DEBUG_MODE) console.log(msg,obj); }
 
 // === map ===
 const hydrantIcon = L.divIcon({ className:"emoji-pin", html:"🧯", iconSize:[24,24], iconAnchor:[12,12] });
@@ -110,14 +102,13 @@ const search=document.getElementById('search');
 const onlyOk=document.getElementById('f-only-ok');
 const onlyStorts=document.getElementById('f-only-storts');
 const muniSel=document.getElementById('f-muni');
-const cabSel=document.getElementById('f-cabinet');
 const btnReset=document.getElementById('btn-reset');
 
 // === filters ===
 onlyOk.onchange=()=>{if(onlyOk.checked) onlyStorts.checked=false; applyAll();};
 onlyStorts.onchange=()=>{if(onlyStorts.checked) onlyOk.checked=false; applyAll();};
-search.oninput=applyAll; muniSel.onchange=applyAll; cabSel.onchange=applyAll;
-btnReset.onclick=()=>{search.value="";onlyOk.checked=onlyStorts.checked=false;muniSel.value="";cabSel.value="";applyAll();};
+search.oninput=applyAll; muniSel.onchange=applyAll;
+btnReset.onclick=()=>{search.value="";onlyOk.checked=onlyStorts.checked=false;muniSel.value="";applyAll();};
 
 document.querySelectorAll('th[data-sort]').forEach(th=>{
   th.onclick=()=>{const k=th.dataset.sort;if(state.sortBy===k) state.sortDir=state.sortDir==="asc"?"desc":"asc";else{state.sortBy=k;state.sortDir="asc";}applyAll();};
@@ -133,8 +124,7 @@ function renderTable(){
       <td class="status-cell"><span class="badge ${statusClass(h.status)}">${esc(h.status)}</span></td>
       <td>${formatDate(h.lastInspection)}</td>
       <td>${esc(h.storts)}</td>
-      <td>${esc(h.comments)}</td>
-      <td>${esc(h.cabinet)}</td>`;
+      <td>${esc(h.comments)}</td>`;
     tr.onclick=()=>selectHydrant(h.id,{fly:true});
     tbody.appendChild(tr);
   }
@@ -143,7 +133,7 @@ function renderMarkers(){
   for(const [,m] of state.markersById) map.removeLayer(m); state.markersById.clear();
   for(const h of state.filtered){
     const m=L.marker([h.lat,h.lng],{icon:hydrantIcon}).addTo(map);
-    m.bindPopup(`<b>${esc(h.name)}</b><br/>Δήμος: ${esc(h.municipality)}<br/>Κατάσταση: ${esc(h.status)}<br/>Επιθ.: ${formatDate(h.lastInspection)}<br/>Χρειάζεται στορτς: ${esc(h.storts)}<br/>Φωλιά: ${esc(h.cabinet)}<br/>Σχόλια: ${esc(h.comments)}`);
+    m.bindPopup(`<b>${esc(h.name)}</b><br/>Δήμος: ${esc(h.municipality)}<br/>Κατάσταση: ${esc(h.status)}<br/>Επιθ.: ${formatDate(h.lastInspection)}<br/>Χρειάζεται στορτς: ${esc(h.storts)}<br/>Σχόλια: ${esc(h.comments)}`);
     m.on('click',()=>selectHydrant(h.id,{fly:false}));
     state.markersById.set(h.id,m);
   }
@@ -155,14 +145,13 @@ function selectHydrant(id,{fly=true}={}){
 
 function applyAll(){
   const q=normalize(search.value);
-  const selM=muniSel.value, selC=cabSel.value;
+  const selM=muniSel.value;
   let f=state.data.filter(h=>{
-    const txt=normalize(`${h.name} ${h.status} ${h.storts} ${h.comments} ${h.municipality} ${h.cabinet}`);
+    const txt=normalize(`${h.name} ${h.status} ${h.storts} ${h.comments} ${h.municipality}`);
     if(q && !txt.includes(q)) return false;
     if(onlyOk.checked && !h.functional) return false;
     if(onlyStorts.checked && !h.needsStorts) return false;
     if(selM && h.municipality!==selM) return false;
-    if(selC && h.cabinet!==selC) return false;
     return true;
   });
   f.sort((a,b)=>{const va=(a[state.sortBy]??"").toString().toLowerCase();const vb=(b[state.sortBy]??"").toString().toLowerCase();return va<vb?-1*(state.sortDir==="asc"?1:-1):va>vb?1*(state.sortDir==="asc"?1:-1):0;});
@@ -172,14 +161,14 @@ function applyAll(){
 // === fetch ===
 async function fetchHydrants(){
   const {data,error}=await sb.from('hydrants_with_coords')
-    .select('id,code,name,address,status,municipality,last_verified_at,comments,"needsStorts",cabinet,lat,lon')
+    .select('id,code,name,address,status,municipality,last_verified_at,comments,"needsStorts",lat,lon')
     .limit(5000);
-  if(error){debug('Supabase error',error);return;}
+  if(error){console.error(error);return;}
   const mapped=(data||[]).map(h=>({
     id:h.id,name:h.name||h.code||"Κρουνός",status:h.status||"",
     municipality:h.municipality||"",lastInspection:h.last_verified_at||null,
     storts:(h.needsStorts===false)?"Ναι":"Όχι",comments:h.comments||"",
-    cabinet:h.cabinet||"",functional:normalize(h.status)==="ΛΕΙΤΟΥΡΓΙΚΟΣ"||normalize(h.status)==="ACTIVE",
+    functional:normalize(h.status)==="ΛΕΙΤΟΥΡΓΙΚΟΣ"||normalize(h.status)==="ACTIVE",
     needsStorts:(h.needsStorts===false),lat:Number(h.lat),lng:Number(h.lon)
   }));
   state.data=mapped; applyAll(); if(state.filtered[0]) selectHydrant(state.filtered[0].id,{fly:false});
@@ -188,5 +177,3 @@ fetchHydrants();
 </script>
 </body>
 </html>
-
-
