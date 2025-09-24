@@ -129,15 +129,40 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
       tbody.appendChild(tr);
     }
   }
+
+  function hasValidCoords(h){
+  return Number.isFinite(h.lat) && Number.isFinite(h.lng) &&
+         Math.abs(h.lat) <= 90 && Math.abs(h.lng) <= 180;
+}
+
   function renderMarkers(){
-    for(const [,m] of state.markersById) map.removeLayer(m); state.markersById.clear();
-    for(const h of state.filtered){
-      const m=L.marker([h.lat,h.lng],{icon:hydrantIcon}).addTo(map);
-      m.bindPopup(`<b>${esc(h.name)}</b><br/>Δήμος: ${esc(h.municipality)}<br/>Κατάσταση: ${esc(h.status)}<br/>Επιθ.: ${formatDate(h.lastInspection)}<br/>Χρειάζεται στορτς: ${esc(h.storts)}<br/>Σχόλια: ${esc(h.comments)}`);
-      m.on('click',()=>selectHydrant(h.id,{fly:false}));
-      state.markersById.set(h.id,m);
-    }
+  // Καθάρισμα παλιών
+  for (const [,m] of state.markersById) map.removeLayer(m);
+  state.markersById.clear();
+
+  // Νέα markers μόνο για τα φιλτραρισμένα + bounds
+  const bounds = L.latLngBounds();
+
+  for (const h of state.filtered){
+    if (!hasValidCoords(h)) continue;   // skip κακά rows
+
+    const m = L.marker([h.lat, h.lng], {icon: hydrantIcon}).addTo(map);
+    m.bindPopup(
+      `<b>${esc(h.name)}</b><br/>Δήμος: ${esc(h.municipality)}<br/>` +
+      `Κατάσταση: ${esc(h.status)}<br/>Επιθ.: ${formatDate(h.lastInspection)}<br/>` +
+      `Χρειάζεται στορτς: ${esc(h.storts)}<br/>Σχόλια: ${esc(h.comments)}`
+    );
+    m.on('click', ()=>selectHydrant(h.id,{fly:false}));
+    state.markersById.set(h.id, m);
+    bounds.extend([h.lat, h.lng]);
   }
+
+  // Auto-zoom στα αποτελέσματα του φίλτρου
+  if (bounds.isValid()) {
+    map.fitBounds(bounds, { padding: [24,24], maxZoom: 16 });
+  }
+}
+
   function selectHydrant(id,{fly=true}={}){
     state.selectedId=id; const h=state.data.find(x=>x.id===id); if(!h) return;
     if(fly) map.flyTo([h.lat,h.lng],16); const m=state.markersById.get(id); if(m) m.openPopup();
@@ -194,7 +219,8 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
       comments:h.comments||"",
       functional:normalize(h.status)==="ΛΕΙΤΟΥΡΓΙΚΟΣ"||normalize(h.status)==="ACTIVE",
       needsStorts:(h.needsStorts===false),
-      lat:Number(h.lat),lng:Number(h.lon)
+     lat: (h.lat == null ? NaN : Number(h.lat)),
+     lng: (h.lon == null ? NaN : Number(h.lon))
     }));
 
     state.data=mapped;
@@ -207,3 +233,4 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 </script>
 </body>
 </html>
+
