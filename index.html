@@ -64,13 +64,29 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+// ΝΕΑ: Φόρτωση βιβλιοθηκών Firebase (για απλό JS)
+importScripts("https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js");
+importScripts("https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js");
+  
+// ====== ΡΥΘΜΙΣΗ FIREBASE ======
+// ΑΝΤΙΚΑΤΑΣΤΗΣΤΕ ΜΕ ΤΑ ΔΙΚΑ ΣΑΣ ΣΤΟΙΧΕΙΑ CONFIG
+// ====== ΡΥΘΜΙΣΗ FIREBASE: ΠΡΑΓΜΑΤΙΚΕΣ ΤΙΜΕΣ ======
+const firebaseConfig = {
+    apiKey: "AIzaSyDG6M7ZNNxEVEwed6qKFG4S-Te-bmUQztk",
+    authDomain: "hydrantsnearby.firebaseapp.com",
+    projectId: "hydrantsnearby",
+    storageBucket: "hydrantsnearby.appspot.com",
+    messagingSenderId: "768296422349",
+    appId: "1:768296422349:web:6516284f661cd8c16fd284", // <--- Ολοκληρωμένο App ID
+    // measurementId: "G-377W35XQ8Y" // Προαιρετικό
+};
 
-  // ====== ΡΥΘΜΙΣΗ SUPABASE ======
-  const SUPABASE_URL = "https://bvkfucezbffchaerlbao.supabase.co";  
-  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2a2Z1Y2V6YmZmY2hhZXJsYmFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5NDAyNDUsImV4cCI6MjA3MzUxNjI0NX0.nTART0evAClUzq9hJYnQW6s4NL09srxUZT9QcFKD8pQ";            
-  const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
-
+// Αρχικοποίηση Firebase
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.firestore(); // Αυτό είναι το αντικείμενο της βάσης δεδομένων
+  
   // === helpers ===
   const normalize = (s) => (s||"").toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
   const esc = (s)=>String(s ?? "-").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
@@ -204,10 +220,26 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
   // === fetch ===
   async function fetchHydrants(){
-    const {data,error}=await sb.from('hydrants_with_coords')
-      .select('id,code,name,address,status,municipality,last_verified_at,comments,"needsStorts",lat,lon')
-      .limit(5000);
-    if(error){console.error(error);return;}
+ let data = [];
+    let error = null;
+
+    try {
+        // ΝΕΑ: Κλήση στο Firebase Firestore
+        const snapshot = await db.collection('hydrants').limit(5000).get();
+        
+        // Μετατρέπουμε τα αποτελέσματα του Firestore σε πίνακα
+        data = snapshot.docs.map(doc => ({
+            id: doc.id, 
+            ...doc.data() 
+        }));
+
+    } catch (e) {
+        error = e;
+        console.error("Σφάλμα ανάκτησης από Firebase Firestore:", e);
+        // Δεν επιστρέφουμε δεδομένα αν υπάρξει σφάλμα
+        return; 
+    }
+    // ... Ο υπόλοιπος κώδικας mapping συνεχίζει κανονικά ...
     const mapped=(data||[]).map(h=>({
       id:h.id,
       name:h.name||h.code||"Κρουνός",
@@ -233,5 +265,6 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 </script>
 </body>
 </html>
+
 
 
